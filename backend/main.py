@@ -36,6 +36,30 @@ class FavoriteFoodRequest(BaseModel):
     topNHigh: int = 50
     topNLow: int = 5
 
+class TDEERequest(BaseModel):
+    gender: str
+    age: int
+    weight: float
+    height: float
+    activity_level: str
+
+def calculate_bmr(gender: str, weight: float, height: float, age: int) -> float:
+    if gender.lower() == "male":
+        bmr = 88.362 + (13.397 * weight) + (4.799 * height) - (5.677 * age)
+    else:
+        bmr = 447.593 + (9.247 * weight) + (3.098 * height) - (4.330 * age)
+    return bmr
+
+def calculate_tdee(bmr: float, activity_level: str) -> float:
+    activity_multipliers = {
+        "sedentary": 1.2,
+        "light": 1.375,
+        "moderate": 1.55,
+        "active": 1.725,
+        "very active": 1.9
+    }
+    return bmr * activity_multipliers.get(activity_level.lower(), 1.2)
+
 @app.post("/recommendations")
 async def index(
     request: FavoriteFoodRequest,
@@ -178,5 +202,14 @@ async def index(
             "page_size": page_size,
             "total_length": len(diverse_recommendations_df)
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.post("/tdee")
+async def calculate_tdee_endpoint(request: TDEERequest):
+    try:
+        bmr = calculate_bmr(request.gender, request.weight, request.height, request.age)
+        tdee = calculate_tdee(bmr, request.activity_level)
+        return {"BMR": bmr, "TDEE": tdee}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")

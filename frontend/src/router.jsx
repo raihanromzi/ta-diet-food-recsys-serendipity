@@ -7,19 +7,19 @@ import DietFood from './pages/diet-food';
 import TimeToEat from './pages/time-to-eat';
 
 function Router() {
-    return (
-        <div>
-            <Sidebar>
-                <Routes>
-                    <Route path="/" element={<Onboarding/>}/>
-                    <Route path="favourite-food" element={<FavouriteFood/>}/>
-                    <Route path="diet-food" element={<DietFood/>}/>
-                    <Route path="time-to-eat" element={<TimeToEat/>}/>
-                    <Route path="*" element={<NotFound/>}/>
-                </Routes>
-            </Sidebar>
-        </div>
-    )
+  return (
+      <div>
+        <Sidebar>
+          <Routes>
+            <Route path="/" element={<Onboarding/>}/>
+            <Route path="favourite-food" element={<FavouriteFood/>}/>
+            <Route path="diet-food" element={<DietFood/>}/>
+            <Route path="time-to-eat" element={<TimeToEat/>}/>
+            <Route path="*" element={<NotFound/>}/>
+          </Routes>
+        </Sidebar>
+      </div>
+  )
 }
 
 export default Router
