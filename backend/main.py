@@ -12,6 +12,7 @@ app = FastAPI()
 origins = [
     "http://localhost",
     "http://localhost:8080",
+    "http://localhost:5173",
 ]
 
 app.add_middleware(
@@ -33,14 +34,15 @@ with open('./models/tfidf_matrix.pkl', 'rb') as f:
 
 class FavoriteFoodRequest(BaseModel):
     favoriteFoods: list[str]
-    topNHigh: int = 50
-    topNLow: int = 5
+    topNHigh: int = 100
+    topNLow: int = 20
+    tdee: float
 
 class TDEERequest(BaseModel):
-    gender: str
     age: int
-    weight: float
-    height: float
+    weight: float  # weight in kg
+    height: float  # height in cm
+    gender: str
     activity_level: str
 
 def calculate_bmr(gender: str, weight: float, height: float, age: int) -> float:
@@ -53,23 +55,54 @@ def calculate_bmr(gender: str, weight: float, height: float, age: int) -> float:
 def calculate_tdee(bmr: float, activity_level: str) -> float:
     activity_multipliers = {
         "sedentary": 1.2,
-        "light": 1.375,
-        "moderate": 1.55,
-        "active": 1.725,
-        "very active": 1.9
+        "lightly": 1.375,
+        "moderately": 1.55,
+        "very-active": 1.725,
+        "extra-active": 1.9
     }
-    return bmr * activity_multipliers.get(activity_level.lower(), 1.2)
+    multiplier = activity_multipliers.get(activity_level.lower(), 1.2)
+    tdee = bmr * multiplier
+    return tdee
+
+def calculate_bmi(weight: float, height: float) -> float:
+    height_in_meters = height / 100  # convert height to meters
+    bmi = weight / (height_in_meters ** 2)
+    return bmi
+
+def get_bmi_status(bmi: float) -> str:
+    if bmi < 18.5:
+        return "Underweight"
+    elif 18.5 <= bmi < 24.9:
+        return "Normal weight"
+    elif 25 <= bmi < 29.9:
+        return "Overweight"
+    else:
+        return "Obesity"
+
+def balance_calories(recommendations, min_cal, max_cal, min_items):
+    balanced_recommendations = recommendations[(recommendations['Calories'] >= min_cal) & (recommendations['Calories'] <= max_cal)]
+    if len(balanced_recommendations) < min_items:
+        additional_recommendations = recommendations[(recommendations['Calories'] < min_cal) | (recommendations['Calories'] > max_cal)]
+        additional_recommendations = additional_recommendations.sample(min_items - len(balanced_recommendations), random_state=42)
+        balanced_recommendations = pd.concat([balanced_recommendations, additional_recommendations])
+    return balanced_recommendations
 
 @app.post("/recommendations")
 async def index(
     request: FavoriteFoodRequest,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1),
-    max_calories: int = Query(None, ge=0)
     ):
     try:
         # Extract user favorite foods
         user_favorite_foods = request.favoriteFoods
+        tdee = request.tdee
+
+        # Calculate calorie ranges based on TDEE
+        breakfast_calories_min = tdee * 0.3
+        breakfast_calories_max = tdee * 0.35
+        lunch_calories_min = tdee * 0.35
+        lunch_calories_max = tdee * 0.4
+        dinner_calories_min = tdee * 0.25
+        dinner_calories_max = tdee * 0.35
 
         # Generate combinations for similarity calculations
         user_favorites = user_favorite_foods + [' '.join(user_favorite_foods)]
@@ -148,7 +181,7 @@ async def index(
 
         # Rank items by serendipity
         ranked_indices = np.argsort(serendipity_scores)[::-1]
-        top_high_similarity_recommendations = high_similarity_df.iloc[ranked_indices[:50]].reset_index(drop=True)
+        top_high_similarity_recommendations = high_similarity_df.iloc[ranked_indices[:100]].reset_index(drop=True)
 
         # Calculate diversity scores on low similarity
         candidate_low_similarity_vectors = low_similarity_df['CosineSimilarity'].values.reshape(-1, 1)
@@ -177,39 +210,56 @@ async def index(
         for cluster in np.unique(clusters):
             cluster_indices = np.where(clusters == cluster)[0]
             cluster_recommendations = top_recommendations.iloc[cluster_indices]
-            num_recommendations_from_cluster = min(10, len(cluster_recommendations))
+            num_recommendations_from_cluster = min(20, len(cluster_recommendations))
             diverse_recommendations.append(cluster_recommendations.head(num_recommendations_from_cluster))
 
         diverse_recommendations_df = pd.concat(diverse_recommendations).reset_index(drop=True)
 
-        # Stage 1 drop columns
-        diverse_recommendations_df.drop(['Combined', 'CosineSimilarity'], axis=1, inplace=True)
-        diverse_recommendations_df.drop_duplicates(inplace=True)
+        # Balance calorie distribution
+        breakfast_recommendations = balance_calories(diverse_recommendations_df, breakfast_calories_min, breakfast_calories_max, 5)
+        lunch_recommendations = balance_calories(diverse_recommendations_df, lunch_calories_min, lunch_calories_max, 5)
+        dinner_recommendations = balance_calories(diverse_recommendations_df, dinner_calories_min, dinner_calories_max, 5)
 
-         # Filter based on name and max calories
-        if max_calories is not None:
-            diverse_recommendations_df = diverse_recommendations_df[diverse_recommendations_df['Calories'] <= float(max_calories)]
+        print(len(breakfast_recommendations), len(lunch_recommendations), len(dinner_recommendations))
 
-        # Pagination
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        paginated_recommendations = diverse_recommendations_df.iloc[start_idx:end_idx]
+        # Combine balanced recommendations
+        combined_recommendations = pd.concat([breakfast_recommendations, lunch_recommendations, dinner_recommendations]).drop_duplicates().reset_index(drop=True)
+
+        # Combine drop columns
+        combined_recommendations.drop(['Combined', 'CosineSimilarity'], axis=1, inplace=True)
+        combined_recommendations.drop_duplicates(inplace=True)
+
+        # Breakfast
+        breakfast_recommendations.drop(['Combined', 'CosineSimilarity'], axis=1, inplace=True)
+        breakfast_recommendations.drop_duplicates(inplace=True)
+
+        # Lunch
+        lunch_recommendations.drop(['Combined', 'CosineSimilarity'], axis=1, inplace=True)
+        lunch_recommendations.drop_duplicates(inplace=True)
+
+        # Dinner
+        dinner_recommendations.drop(['Combined', 'CosineSimilarity'], axis=1, inplace=True)
+        dinner_recommendations.drop_duplicates(inplace=True)
 
         # Return the serendipitous recommendations
         return {
-            "data": paginated_recommendations.to_dict(orient="records"),
-            "page": page,
-            "page_size": page_size,
-            "total_length": len(diverse_recommendations_df)
+            "total_data": len(combined_recommendations),
+            "data": {
+                "breakfast": breakfast_recommendations.to_dict(orient="records"),
+                "lunch": lunch_recommendations.to_dict(orient="records"),
+                "dinner": dinner_recommendations.to_dict(orient="records"),
+            }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
-@app.post("/tdee")
+@app.post("/tdee-bmi")
 async def calculate_tdee_endpoint(request: TDEERequest):
     try:
         bmr = calculate_bmr(request.gender, request.weight, request.height, request.age)
         tdee = calculate_tdee(bmr, request.activity_level)
-        return {"BMR": bmr, "TDEE": tdee}
+        bmi = calculate_bmi(request.weight, request.height)
+        bmi_status = get_bmi_status(bmi)
+        return {"BMI": round(bmi, 2), "BMIStatus": bmi_status, "TDEE": round(tdee, 2)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")

@@ -1,25 +1,47 @@
-import {Route, Routes} from 'react-router-dom';
-import Sidebar from './components/sidebar'
-import Onboarding from "./pages/onboarding";
-import FavouriteFood from "./pages/favourite-food";
-import NotFound from './pages/not-found';
-import DietFood from './pages/diet-food';
-import TimeToEat from './pages/time-to-eat';
+import { Route, Routes } from 'react-router-dom';
+import Sidebar from './components/Sidebar.jsx';
+import Onboarding from './pages/Onboarding.jsx';
+import FavouriteFood from './pages/FavouriteFood.jsx';
+import NotFound from './pages/NotFound.jsx';
+import DietFood from './pages/DietFood.jsx';
+import TimeToEat from './pages/TimeToEat.jsx';
+import ProtectedRoute from './components/ProtectedRoutes.jsx';
 
 function Router() {
   return (
-      <div>
-        <Sidebar>
-          <Routes>
-            <Route path="/" element={<Onboarding/>}/>
-            <Route path="favourite-food" element={<FavouriteFood/>}/>
-            <Route path="diet-food" element={<DietFood/>}/>
-            <Route path="time-to-eat" element={<TimeToEat/>}/>
-            <Route path="*" element={<NotFound/>}/>
-          </Routes>
-        </Sidebar>
-      </div>
-  )
+    <div>
+      <Sidebar>
+        <Routes>
+          <Route path='/' element={<Onboarding />} />
+          <Route
+            path='favourite-food'
+            element={
+              <ProtectedRoute>
+                <FavouriteFood />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='diet-food'
+            element={
+              <ProtectedRoute>
+                <DietFood />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='time-to-eat'
+            element={
+              <ProtectedRoute>
+                <TimeToEat />
+              </ProtectedRoute>
+            }
+          />
+          <Route path='*' element={<NotFound />} />
+        </Routes>
+      </Sidebar>
+    </div>
+  );
 }
 
-export default Router
+export default Router;
