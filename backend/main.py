@@ -6,6 +6,7 @@ import pickle
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 from sklearn.cluster import KMeans
+from google_images_search import GoogleImagesSearch
 
 app = FastAPI()
 
@@ -34,8 +35,8 @@ with open('./models/tfidf_matrix.pkl', 'rb') as f:
 
 class FavoriteFoodRequest(BaseModel):
     favoriteFoods: list[str]
-    topNHigh: int = 100
-    topNLow: int = 20
+    topNHigh: int = 250
+    topNLow: int = 100
     tdee: float
 
 class TDEERequest(BaseModel):
@@ -87,6 +88,24 @@ def balance_calories(recommendations, min_cal, max_cal, min_items):
         balanced_recommendations = pd.concat([balanced_recommendations, additional_recommendations])
     return balanced_recommendations
 
+def get_image_url(query: str) -> str:
+    gis = GoogleImagesSearch('AIzaSyDHuSqbBG0RSRQiDYPFYw6_2-yGZFUuS5g', '90f5945524c6643aa')
+
+    _search_params = {
+        'q': query,
+        'num': 1,
+        'safe': 'high',
+        'fileType': 'jpg|png|jpeg',
+        'imgType': 'photo',
+        'imgSize': 'medium',
+    }
+
+    gis.search(search_params=_search_params)
+    if gis.results():
+        return gis.results()[0].url
+    return 'No image found'
+
+
 @app.post("/recommendations")
 async def index(
     request: FavoriteFoodRequest,
@@ -97,12 +116,14 @@ async def index(
         tdee = request.tdee
 
         # Calculate calorie ranges based on TDEE
-        breakfast_calories_min = tdee * 0.3
+        breakfast_calories_min = tdee * 0.30
         breakfast_calories_max = tdee * 0.35
         lunch_calories_min = tdee * 0.35
-        lunch_calories_max = tdee * 0.4
+        lunch_calories_max = tdee * 0.40
         dinner_calories_min = tdee * 0.25
         dinner_calories_max = tdee * 0.35
+
+        print(breakfast_calories_min, breakfast_calories_max, lunch_calories_min, lunch_calories_max, dinner_calories_min, dinner_calories_max)
 
         # Generate combinations for similarity calculations
         user_favorites = user_favorite_foods + [' '.join(user_favorite_foods)]
@@ -181,7 +202,7 @@ async def index(
 
         # Rank items by serendipity
         ranked_indices = np.argsort(serendipity_scores)[::-1]
-        top_high_similarity_recommendations = high_similarity_df.iloc[ranked_indices[:100]].reset_index(drop=True)
+        top_high_similarity_recommendations = high_similarity_df.iloc[ranked_indices[:150]].reset_index(drop=True)
 
         # Calculate diversity scores on low similarity
         candidate_low_similarity_vectors = low_similarity_df['CosineSimilarity'].values.reshape(-1, 1)
@@ -196,7 +217,7 @@ async def index(
 
         # Rank items by serendipity
         ranked_indices = np.argsort(serendipity_scores)[::-1]
-        top_low_similarity_recommendations = low_similarity_df.iloc[ranked_indices[:50]].reset_index(drop=True)
+        top_low_similarity_recommendations = low_similarity_df.iloc[ranked_indices[:70]].reset_index(drop=True)
 
         # Combine high and low similarity recommendations
         top_recommendations = pd.concat([top_high_similarity_recommendations, top_low_similarity_recommendations]).reset_index(drop=True)
@@ -214,36 +235,54 @@ async def index(
             diverse_recommendations.append(cluster_recommendations.head(num_recommendations_from_cluster))
 
         diverse_recommendations_df = pd.concat(diverse_recommendations).reset_index(drop=True)
+        diverse_recommendations_df.drop_duplicates(inplace=True)
 
         # Balance calorie distribution
-        breakfast_recommendations = balance_calories(diverse_recommendations_df, breakfast_calories_min, breakfast_calories_max, 5)
-        lunch_recommendations = balance_calories(diverse_recommendations_df, lunch_calories_min, lunch_calories_max, 5)
-        dinner_recommendations = balance_calories(diverse_recommendations_df, dinner_calories_min, dinner_calories_max, 5)
-
-        print(len(breakfast_recommendations), len(lunch_recommendations), len(dinner_recommendations))
-
-        # Combine balanced recommendations
-        combined_recommendations = pd.concat([breakfast_recommendations, lunch_recommendations, dinner_recommendations]).drop_duplicates().reset_index(drop=True)
-
-        # Combine drop columns
-        combined_recommendations.drop(['Combined', 'CosineSimilarity'], axis=1, inplace=True)
-        combined_recommendations.drop_duplicates(inplace=True)
+        breakfast_recommendations = balance_calories(diverse_recommendations_df, breakfast_calories_min, breakfast_calories_max, 20)
+        lunch_recommendations = balance_calories(diverse_recommendations_df, lunch_calories_min, lunch_calories_max, 20)
+        dinner_recommendations = balance_calories(diverse_recommendations_df, dinner_calories_min, dinner_calories_max, 20)
 
         # Breakfast
         breakfast_recommendations.drop(['Combined', 'CosineSimilarity'], axis=1, inplace=True)
         breakfast_recommendations.drop_duplicates(inplace=True)
 
-        # Lunch
-        lunch_recommendations.drop(['Combined', 'CosineSimilarity'], axis=1, inplace=True)
-        lunch_recommendations.drop_duplicates(inplace=True)
 
         # Dinner
         dinner_recommendations.drop(['Combined', 'CosineSimilarity'], axis=1, inplace=True)
         dinner_recommendations.drop_duplicates(inplace=True)
 
+        # Lunch
+        lunch_recommendations.drop(['Combined', 'CosineSimilarity'], axis=1, inplace=True)
+        lunch_recommendations.drop_duplicates(inplace=True)
+
+        # Fetch Image for Breakfast, Lunch and Dinner
+        for i, row in breakfast_recommendations.iterrows():
+            recipe_name = row['NameClean']
+            try:
+                image_link = get_image_url(recipe_name)
+                breakfast_recommendations.loc[i, 'ImageLink'] = image_link
+            except Exception as e:
+                breakfast_recommendations.loc[i, 'ImageLink'] = f"Error finding image: {str(e)}"
+
+        for i, row in lunch_recommendations.iterrows():
+            recipe_name = row['NameClean']
+            try:
+                image_link = get_image_url(recipe_name)
+                lunch_recommendations.loc[i, 'ImageLink'] = image_link
+            except Exception as e:
+                lunch_recommendations.loc[i, 'ImageLink'] = f"Error finding image: {str(e)}"
+
+        for i, row in dinner_recommendations.iterrows():
+            recipe_name = row['NameClean']
+            try:
+                image_link = get_image_url(recipe_name)
+                dinner_recommendations.loc[i, 'ImageLink'] = image_link
+            except Exception as e:
+                dinner_recommendations.loc[i, 'ImageLink'] = f"Error finding image: {str(e)}"
+
         # Return the serendipitous recommendations
         return {
-            "total_data": len(combined_recommendations),
+            "total_data": len(breakfast_recommendations) + len(lunch_recommendations) + len(dinner_recommendations),
             "data": {
                 "breakfast": breakfast_recommendations.to_dict(orient="records"),
                 "lunch": lunch_recommendations.to_dict(orient="records"),

@@ -82,7 +82,7 @@ function DietFood() {
             <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
               <div className='p-1'>
                 <img
-                  src='https://images.unsplash.com/photo-1588345921523-c2dcdb7f1dcd?w=800&dpr=2&q=80'
+                  src={food.ImageLink}
                   alt={food.NameClean}
                   className='rounded-md '
                 />
@@ -107,7 +107,7 @@ function DietFood() {
             <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
               <div className='p-1'>
                 <img
-                  src='https://images.unsplash.com/photo-1588345921523-c2dcdb7f1dcd?w=800&dpr=2&q=80'
+                  src={food.ImageLink}
                   alt={food.NameClean}
                   className='rounded-md '
                 />
@@ -132,7 +132,7 @@ function DietFood() {
             <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
               <div className='p-1'>
                 <img
-                  src='https://images.unsplash.com/photo-1588345921523-c2dcdb7f1dcd?w=800&dpr=2&q=80'
+                  src={food.ImageLink}
                   alt={food.NameClean}
                   className='rounded-md '
                 />
