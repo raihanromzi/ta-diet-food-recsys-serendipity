@@ -14,6 +14,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import axios from 'axios';
+import * as Dialog from '@radix-ui/react-dialog';
+import { setSelectedDietFoods } from '@/redux/reducer';
 
 function DietFood() {
   const navigate = useNavigate();
@@ -46,6 +48,8 @@ function DietFood() {
   const [selectedBreakfastFoods, setSelectedBreakfastFoods] = useState([]);
   const [selectedLunchFoods, setSelectedLunchFoods] = useState([]);
   const [selectedDinnerFoods, setSelectedDinnerFoods] = useState([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedFood, setSelectedFood] = useState(null);
 
   const fetchImages = async (foods, setImages) => {
     const imagePromises = foods.map(async food => {
@@ -104,6 +108,11 @@ function DietFood() {
     }
   };
 
+  const handleImageClick = food => {
+    setSelectedFood(food);
+    setDialogOpen(true);
+  };
+
   const calculateTotalCalories = (selectedFoods, foods) => {
     return selectedFoods.reduce((total, foodId) => {
       const food = foods.find(food => food.RecipeId === foodId);
@@ -121,7 +130,8 @@ function DietFood() {
             <img
               src={images[index] || ''}
               alt={food.NameClean}
-              className='rounded-md w-full h-64 object-cover'
+              className='rounded-md w-full h-64 object-cover cursor-pointer'
+              onClick={() => handleImageClick(food)}
             />
           )}
           <div className='text-center'>
@@ -153,6 +163,22 @@ function DietFood() {
     selectedDinnerFoods,
     dinner
   );
+
+  const handleCreatePlan = () => {
+    const selectedFoods = {
+      breakfast: selectedBreakfastFoods.map(foodId =>
+        breakfast.find(food => food.RecipeId === foodId)
+      ),
+      lunch: selectedLunchFoods.map(foodId =>
+        lunch.find(food => food.RecipeId === foodId)
+      ),
+      dinner: selectedDinnerFoods.map(foodId =>
+        dinner.find(food => food.RecipeId === foodId)
+      ),
+    };
+    dispatch(setSelectedDietFoods(selectedFoods));
+    navigate('/time-to-eat');
+  };
 
   return (
     <>
@@ -291,13 +317,55 @@ function DietFood() {
         </Button>
         <Button
           className='rounded-full bg-black px-10'
-          onClick={() => {
-            navigate('/time-to-eat');
-          }}
+          onClick={handleCreatePlan}
         >
           Create Plan
         </Button>
       </div>
+
+      <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className='fixed inset-0 bg-black opacity-30' />
+          <Dialog.Content className='fixed inset-0 flex items-center justify-center p-4'>
+            <div className='bg-white p-6 rounded-lg shadow-lg max-w-lg w-full'>
+              <Dialog.Title className='text-2xl font-bold mb-2'>
+                {selectedFood?.NameClean}
+              </Dialog.Title>
+              <Dialog.Description className='mt-2'>
+                <h3 className='text-xl font-semibold mb-2'>Nutrition Facts</h3>
+                <ul className='list-disc list-inside'>
+                  <li>Calories: {selectedFood?.Calories}</li>
+                  <li>Fat Content: {selectedFood?.FatContent} g</li>
+                  <li>
+                    Saturated Fat Content: {selectedFood?.SaturatedFatContent} g
+                  </li>
+                  <li>
+                    Cholesterol Content: {selectedFood?.CholesterolContent} mg
+                  </li>
+                  <li>Sodium Content: {selectedFood?.SodiumContent} mg</li>
+                  <li>
+                    Carbohydrate Content: {selectedFood?.CarbohydrateContent} g
+                  </li>
+                  <li>Fiber Content: {selectedFood?.FiberContent} g</li>
+                  <li>Sugar Content: {selectedFood?.SugarContent} g</li>
+                  <li>Protein Content: {selectedFood?.ProteinContent} g</li>
+                </ul>
+                <h3 className='text-xl font-semibold mt-4 mb-2'>Ingredients</h3>
+                <p>{selectedFood?.RecipeIngredientPartsClean}</p>
+                <h3 className='text-xl font-semibold mt-4 mb-2'>
+                  Instructions
+                </h3>
+                <p>{selectedFood?.RecipeInstructionsClean}</p>
+              </Dialog.Description>
+              <Dialog.Close asChild>
+                <Button variant='outline' className='mt-4'>
+                  Close
+                </Button>
+              </Dialog.Close>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </>
   );
 }
