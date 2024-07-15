@@ -85,6 +85,7 @@ const userSlice = createSlice({
     setSelectedDietFoods: (state, action) => {
       state.selectedDietFoods = action.payload;
     },
+    resetUserState: () => initialState,
   },
 });
 
@@ -105,5 +106,6 @@ export const {
   setLunchMaximumCalories,
   setDinnerMaximumCalories,
   setSelectedDietFoods,
+  resetUserState,
 } = userSlice.actions;
 export default userSlice.reducer;
