@@ -6,9 +6,18 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   setBreakfast,
+  setBreakfastCount,
+  setBreakfastMaximumCalories,
+  setBreakfastMinimumCalories,
   setDinner,
+  setDinnerCount,
+  setDinnerMaximumCalories,
+  setDinnerMinimumCalories,
   setFavoriteFoods,
   setLunch,
+  setLunchCount,
+  setLunchMaximumCalories,
+  setLunchMinimumCalories,
 } from '@/redux/reducer';
 import { X } from 'lucide-react';
 import axios from 'axios';
@@ -63,6 +72,15 @@ function FavouriteFood() {
       dispatch(setBreakfast(data.data.breakfast));
       dispatch(setLunch(data.data.lunch));
       dispatch(setDinner(data.data.dinner));
+      dispatch(setBreakfastCount(data.totalData.breakfast));
+      dispatch(setLunchCount(data.totalData.lunch));
+      dispatch(setDinnerCount(data.totalData.dinner));
+      dispatch(setBreakfastMinimumCalories(data.calories.breakfastMinimum));
+      dispatch(setLunchMinimumCalories(data.calories.lunchMinimum));
+      dispatch(setDinnerMinimumCalories(data.calories.dinnerMinimum));
+      dispatch(setBreakfastMaximumCalories(data.calories.breakfastMaximum));
+      dispatch(setLunchMaximumCalories(data.calories.lunchMaximum));
+      dispatch(setDinnerMaximumCalories(data.calories.dinnerMaximum));
     } catch (error) {
       console.error(error);
     } finally {

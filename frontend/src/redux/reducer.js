@@ -14,7 +14,15 @@ const initialState = {
   breakfast: [],
   lunch: [],
   dinner: [],
-  recommendations: [],
+  breakfastCount: 0,
+  lunchCount: 0,
+  dinnerCount: 0,
+  breakfastMinimumCalories: 0,
+  lunchMinimumCalories: 0,
+  dinnerMinimumCalories: 0,
+  breakfastMaximumCalories: 0,
+  lunchMaximumCalories: 0,
+  dinnerMaximumCalories: 0,
 };
 
 const userSlice = createSlice({
@@ -37,9 +45,6 @@ const userSlice = createSlice({
     setFavoriteFoods: (state, action) => {
       state.favoriteFoods = action.payload;
     },
-    setRecommendations: (state, action) => {
-      state.recommendations = action.payload;
-    },
     setBreakfast: (state, action) => {
       state.breakfast = action.payload;
     },
@@ -49,6 +54,33 @@ const userSlice = createSlice({
     setDinner: (state, action) => {
       state.dinner = action.payload;
     },
+    setBreakfastCount: (state, action) => {
+      state.breakfastCount = action.payload;
+    },
+    setLunchCount: (state, action) => {
+      state.lunchCount = action.payload;
+    },
+    setDinnerCount: (state, action) => {
+      state.dinnerCount = action.payload;
+    },
+    setBreakfastMinimumCalories: (state, action) => {
+      state.breakfastMinimumCalories = action.payload;
+    },
+    setLunchMinimumCalories: (state, action) => {
+      state.lunchMinimumCalories = action.payload;
+    },
+    setDinnerMinimumCalories: (state, action) => {
+      state.dinnerMinimumCalories = action.payload;
+    },
+    setBreakfastMaximumCalories: (state, action) => {
+      state.breakfastMaximumCalories = action.payload;
+    },
+    setLunchMaximumCalories: (state, action) => {
+      state.lunchMaximumCalories = action.payload;
+    },
+    setDinnerMaximumCalories: (state, action) => {
+      state.dinnerMaximumCalories = action.payload;
+    },
   },
 });
 
@@ -56,9 +88,17 @@ export const {
   setUserDetails,
   setBMIandTDEE,
   setFavoriteFoods,
-  setRecommendations,
   setBreakfast,
   setLunch,
   setDinner,
+  setBreakfastCount,
+  setLunchCount,
+  setDinnerCount,
+  setBreakfastMinimumCalories,
+  setLunchMinimumCalories,
+  setDinnerMinimumCalories,
+  setBreakfastMaximumCalories,
+  setLunchMaximumCalories,
+  setDinnerMaximumCalories,
 } = userSlice.actions;
 export default userSlice.reducer;

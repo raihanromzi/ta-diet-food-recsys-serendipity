@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button.jsx';
 import {
   Carousel,
@@ -9,14 +10,148 @@ import {
 import { Input } from '@/components/ui/Input.jsx';
 import { Label } from '@/components/ui/Label.jsx';
 import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import Skeleton from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
+import axios from 'axios';
 
 function DietFood() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   // Accessing the state from Redux
-  const { bmi, tdee, bmiStatus, breakfast, lunch, dinner } = useSelector(
-    state => state.user
+  const {
+    bmi,
+    tdee,
+    bmiStatus,
+    breakfast,
+    lunch,
+    dinner,
+    breakfastCount,
+    lunchCount,
+    dinnerCount,
+    breakfastMinimumCalories,
+    breakfastMaximumCalories,
+    lunchMinimumCalories,
+    lunchMaximumCalories,
+    dinnerMinimumCalories,
+    dinnerMaximumCalories,
+  } = useSelector(state => state.user);
+
+  const [breakfastImages, setBreakfastImages] = useState([]);
+  const [lunchImages, setLunchImages] = useState([]);
+  const [dinnerImages, setDinnerImages] = useState([]);
+  const [loadingImages, setLoadingImages] = useState(true);
+
+  const [selectedBreakfastFoods, setSelectedBreakfastFoods] = useState([]);
+  const [selectedLunchFoods, setSelectedLunchFoods] = useState([]);
+  const [selectedDinnerFoods, setSelectedDinnerFoods] = useState([]);
+
+  const fetchImages = async (foods, setImages) => {
+    const imagePromises = foods.map(async food => {
+      const query = food.NameClean;
+      const response = await axios.get(
+        `https://www.googleapis.com/customsearch/v1`,
+        {
+          params: {
+            cx: '90f5945524c6643aa',
+            q: query,
+            searchType: 'image',
+            num: 1,
+            imgType: 'photo',
+            imgSize: 'medium',
+            fileType: 'jpg|png|jpeg',
+            safe: 'high',
+            key: 'AIzaSyDHuSqbBG0RSRQiDYPFYw6_2-yGZFUuS5g',
+          },
+        }
+      );
+      const items = response.data.items;
+      return items && items.length > 0 ? items[0].link : 'No image found';
+    });
+    const images = await Promise.all(imagePromises);
+    setImages(images);
+  };
+
+  useEffect(() => {
+    const loadImages = async () => {
+      setLoadingImages(true);
+      await fetchImages(breakfast, setBreakfastImages);
+      await fetchImages(lunch, setLunchImages);
+      await fetchImages(dinner, setDinnerImages);
+      setLoadingImages(false);
+    };
+    loadImages();
+  }, [breakfast, lunch, dinner]);
+
+  const handleFoodToggle = (food, type) => {
+    const toggleFood = (selectedFoods, setSelectedFoods) => {
+      const isSelected = selectedFoods.includes(food.RecipeId);
+
+      setSelectedFoods(prevFoods =>
+        isSelected
+          ? prevFoods.filter(item => item !== food.RecipeId)
+          : [...prevFoods, food.RecipeId]
+      );
+    };
+
+    if (type === 'breakfast') {
+      toggleFood(selectedBreakfastFoods, setSelectedBreakfastFoods);
+    } else if (type === 'lunch') {
+      toggleFood(selectedLunchFoods, setSelectedLunchFoods);
+    } else if (type === 'dinner') {
+      toggleFood(selectedDinnerFoods, setSelectedDinnerFoods);
+    }
+  };
+
+  const calculateTotalCalories = (selectedFoods, foods) => {
+    return selectedFoods.reduce((total, foodId) => {
+      const food = foods.find(food => food.RecipeId === foodId);
+      return total + (food ? food.Calories : 0);
+    }, 0);
+  };
+
+  const renderCarouselItems = (foods, images, type, selectedFoods) => {
+    return foods.map((food, index) => (
+      <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
+        <div className='p-1'>
+          {loadingImages || images.length === 0 ? (
+            <Skeleton className='w-full h-64' />
+          ) : (
+            <img
+              src={images[index] || ''}
+              alt={food.NameClean}
+              className='rounded-md w-full h-64 object-cover'
+            />
+          )}
+          <div className='text-center'>
+            <input
+              type='checkbox'
+              checked={selectedFoods.includes(food.RecipeId)}
+              onChange={() => handleFoodToggle(food, type)}
+              className='mr-2'
+            />
+            <span>{food.NameClean || <Skeleton />}</span>
+          </div>
+          <p className='text-center'>
+            {food.Calories ? `${food.Calories.toFixed(1)} Cal` : <Skeleton />}
+          </p>
+        </div>
+      </CarouselItem>
+    ));
+  };
+
+  const selectedBreakfastCalories = calculateTotalCalories(
+    selectedBreakfastFoods,
+    breakfast
+  );
+  const selectedLunchCalories = calculateTotalCalories(
+    selectedLunchFoods,
+    lunch
+  );
+  const selectedDinnerCalories = calculateTotalCalories(
+    selectedDinnerFoods,
+    dinner
   );
 
   return (
@@ -64,13 +199,21 @@ function DietFood() {
 
               <div className='flex'>
                 <div>Maintaining Weight (TDEE):</div>
-                &nbsp;<b>{tdee} Cal/day</b>
+                &nbsp;<b>{tdee.toFixed(1)} Cal/day</b>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <Label className={'font-sans text-2xl font-semibold'}>Breakfast</Label>
+      <div className='flex items-center'>
+        <Label className={'font-sans text-2xl font-semibold'}>Breakfast</Label>
+        <span className='ml-4 text-lg'>{breakfastCount} items</span>
+        <span className='ml-4 text-lg'>
+          {selectedBreakfastCalories.toFixed(1)} of Min:{' '}
+          {breakfastMinimumCalories.toFixed(1)} Cal, Max:{' '}
+          {breakfastMaximumCalories.toFixed(1)} Cal
+        </span>
+      </div>
       <Carousel
         opts={{
           align: 'start',
@@ -78,24 +221,25 @@ function DietFood() {
         className='w-full mt-4 mb-8'
       >
         <CarouselContent>
-          {breakfast.map((food, index) => (
-            <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
-              <div className='p-1'>
-                <img
-                  src={food.ImageLink}
-                  alt={food.NameClean}
-                  className='rounded-md '
-                />
-                <p className='text-center'>{food.NameClean}</p>
-                <p className='text-center'>{food.Calories} Cal</p>
-              </div>
-            </CarouselItem>
-          ))}
+          {renderCarouselItems(
+            breakfast,
+            breakfastImages,
+            'breakfast',
+            selectedBreakfastFoods
+          )}
         </CarouselContent>
         <CarouselPrevious />
         <CarouselNext />
       </Carousel>
-      <Label className={'font-sans text-2xl font-semibold'}>Lunch</Label>
+      <div className='flex items-center'>
+        <Label className={'font-sans text-2xl font-semibold'}>Lunch</Label>
+        <span className='ml-4 text-lg'>{lunchCount} items</span>
+        <span className='ml-4 text-lg'>
+          {selectedLunchCalories.toFixed(1)} of Min:{' '}
+          {lunchMinimumCalories.toFixed(1)} Cal, Max:{' '}
+          {lunchMaximumCalories.toFixed(1)} Cal
+        </span>
+      </div>
       <Carousel
         opts={{
           align: 'start',
@@ -103,24 +247,20 @@ function DietFood() {
         className='w-full mt-4 mb-8'
       >
         <CarouselContent>
-          {lunch.map((food, index) => (
-            <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
-              <div className='p-1'>
-                <img
-                  src={food.ImageLink}
-                  alt={food.NameClean}
-                  className='rounded-md '
-                />
-                <p className='text-center'>{food.NameClean}</p>
-                <p className='text-center'>{food.Calories} Cal</p>
-              </div>
-            </CarouselItem>
-          ))}
+          {renderCarouselItems(lunch, lunchImages, 'lunch', selectedLunchFoods)}
         </CarouselContent>
         <CarouselPrevious />
         <CarouselNext />
       </Carousel>
-      <Label className={'font-sans text-2xl font-semibold'}>Dinner</Label>
+      <div className='flex items-center'>
+        <Label className={'font-sans text-2xl font-semibold'}>Dinner</Label>
+        <span className='ml-4 text-lg'>{dinnerCount} items</span>
+        <span className='ml-4 text-lg'>
+          {selectedDinnerCalories.toFixed(1)} of Min:{' '}
+          {dinnerMinimumCalories.toFixed(1)} Cal, Max:{' '}
+          {dinnerMaximumCalories.toFixed(1)} Cal
+        </span>
+      </div>
       <Carousel
         opts={{
           align: 'start',
@@ -128,19 +268,12 @@ function DietFood() {
         className='w-full mt-4 mb-8'
       >
         <CarouselContent>
-          {dinner.map((food, index) => (
-            <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
-              <div className='p-1'>
-                <img
-                  src={food.ImageLink}
-                  alt={food.NameClean}
-                  className='rounded-md '
-                />
-                <p className='text-center'>{food.NameClean}</p>
-                <p className='text-center'>{food.Calories} Cal</p>
-              </div>
-            </CarouselItem>
-          ))}
+          {renderCarouselItems(
+            dinner,
+            dinnerImages,
+            'dinner',
+            selectedDinnerFoods
+          )}
         </CarouselContent>
         <CarouselPrevious />
         <CarouselNext />
