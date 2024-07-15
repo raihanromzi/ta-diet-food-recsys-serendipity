@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/Button.jsx';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import * as Dialog from '@radix-ui/react-dialog';
-import axios from 'axios';
 import {
   Carousel,
   CarouselContent,
@@ -26,47 +25,15 @@ function TimeToEat() {
   const [selectedFood, setSelectedFood] = useState(null);
   const [selectedFoodImage, setSelectedFoodImage] = useState('');
   const [loadingImages, setLoadingImages] = useState(true);
-  const [breakfastImages, setBreakfastImages] = useState([]);
-  const [lunchImages, setLunchImages] = useState([]);
-  const [dinnerImages, setDinnerImages] = useState([]);
   const [finishDialogOpen, setFinishDialogOpen] = useState(false);
 
-  const fetchImages = async (foods, setImages) => {
-    const imagePromises = foods.map(async food => {
-      const query = food.NameClean;
-      const response = await axios.get(
-        `https://www.googleapis.com/customsearch/v1`,
-        {
-          params: {
-            cx: '90f5945524c6643aa',
-            q: query,
-            searchType: 'image',
-            num: 1,
-            imgType: 'photo',
-            imgSize: 'medium',
-            fileType: 'jpg|png|jpeg',
-            safe: 'high',
-            key: 'AIzaSyDHuSqbBG0RSRQiDYPFYw6_2-yGZFUuS5g',
-          },
-        }
-      );
-      const items = response.data.items;
-      return items && items.length > 0 ? items[0].link : 'No image found';
-    });
-    const images = await Promise.all(imagePromises);
-    setImages(images);
-  };
-
+  // Add loading 1 sec delay
   useEffect(() => {
-    const loadImages = async () => {
-      setLoadingImages(true);
-      await fetchImages(selectedDietFoods.breakfast, setBreakfastImages);
-      await fetchImages(selectedDietFoods.lunch, setLunchImages);
-      await fetchImages(selectedDietFoods.dinner, setDinnerImages);
+    const timer = setTimeout(() => {
       setLoadingImages(false);
-    };
-    loadImages();
-  }, [selectedDietFoods]);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [loadingImages]);
 
   const handleImageClick = (food, imageUrl) => {
     setSelectedFood(food);
@@ -74,15 +41,15 @@ function TimeToEat() {
     setDialogOpen(true);
   };
 
-  const renderFoodList = (foods, images) => {
+  const renderFoodList = foods => {
     return foods.map((food, index) => (
       <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
         <div className='p-1'>
-          {loadingImages || !images.length ? (
+          {loadingImages ? (
             <Skeleton className='w-full h-64' />
           ) : (
             <img
-              src={images[index]}
+              src={food.ImageLink}
               alt={food.NameClean}
               className='rounded-md w-full h-64 object-cover cursor-pointer'
               onClick={() => handleImageClick(food, images[index])}
@@ -140,7 +107,7 @@ function TimeToEat() {
         className='w-full mt-4 mb-8'
       >
         <CarouselContent>
-          {renderFoodList(selectedDietFoods.breakfast, breakfastImages)}
+          {renderFoodList(selectedDietFoods.breakfast)}
         </CarouselContent>
         <CarouselPrevious />
         <CarouselNext />
@@ -156,7 +123,7 @@ function TimeToEat() {
         className='w-full mt-4 mb-8'
       >
         <CarouselContent>
-          {renderFoodList(selectedDietFoods.lunch, lunchImages)}
+          {renderFoodList(selectedDietFoods.lunch)}
         </CarouselContent>
         <CarouselPrevious />
         <CarouselNext />
@@ -172,7 +139,7 @@ function TimeToEat() {
         className='w-full mt-4 mb-8'
       >
         <CarouselContent>
-          {renderFoodList(selectedDietFoods.dinner, dinnerImages)}
+          {renderFoodList(selectedDietFoods.dinner)}
         </CarouselContent>
         <CarouselPrevious />
         <CarouselNext />

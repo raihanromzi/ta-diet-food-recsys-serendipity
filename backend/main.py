@@ -242,9 +242,39 @@ async def index(
         dinner_recommendations = shuffled_recommendations.iloc[breakfast_count + lunch_count:breakfast_count + lunch_count + dinner_count]
 
         # Ensure there are no duplicates within each meal type
+        breakfast_recommendations.drop(columns=['Favorite', 'CosineSimilarity', 'Combined'], inplace=True)
         breakfast_recommendations.drop_duplicates(inplace=True)
+
+        lunch_recommendations.drop(columns=['Favorite', 'CosineSimilarity', 'Combined'], inplace=True)
         lunch_recommendations.drop_duplicates(inplace=True)
+
+        dinner_recommendations.drop(columns=['Favorite', 'CosineSimilarity', 'Combined'], inplace=True)
         dinner_recommendations.drop_duplicates(inplace=True)
+
+        # Fetch images for Breakfast, Lunch, and Dinner
+        for i, row in breakfast_recommendations.iterrows():
+            recipe_name = row['NameClean']
+            try:
+                image_link = get_image_url(recipe_name)
+                breakfast_recommendations.at[i, 'ImageLink'] = image_link
+            except Exception as e:
+                breakfast_recommendations.at[i, 'ImageLink'] = f"Error finding image: {str(e)}"
+
+        for i, row in lunch_recommendations.iterrows():
+            recipe_name = row['NameClean']
+            try:
+                image_link = get_image_url(recipe_name)
+                lunch_recommendations.at[i, 'ImageLink'] = image_link
+            except Exception as e:
+                lunch_recommendations.at[i, 'ImageLink'] = f"Error finding image: {str(e)}"
+
+        for i, row in dinner_recommendations.iterrows():
+            recipe_name = row['NameClean']
+            try:
+                image_link = get_image_url(recipe_name)
+                dinner_recommendations.at[i, 'ImageLink'] = image_link
+            except Exception as e:
+                dinner_recommendations.at[i, 'ImageLink'] = f"Error finding image: {str(e)}"
 
         # Return the serendipitous recommendations
         return {

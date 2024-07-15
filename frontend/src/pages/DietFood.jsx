@@ -13,7 +13,6 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import axios from 'axios';
 import * as Dialog from '@radix-ui/react-dialog';
 import { setSelectedDietFoods } from '@/redux/reducer';
 
@@ -40,53 +39,21 @@ function DietFood() {
     dinnerMaximumCalories,
   } = useSelector(state => state.user);
 
-  const [breakfastImages, setBreakfastImages] = useState([]);
-  const [lunchImages, setLunchImages] = useState([]);
-  const [dinnerImages, setDinnerImages] = useState([]);
   const [loadingImages, setLoadingImages] = useState(true);
+
+  // Add loading 1 sec delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoadingImages(false);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [loadingImages]);
 
   const [selectedBreakfastFoods, setSelectedBreakfastFoods] = useState([]);
   const [selectedLunchFoods, setSelectedLunchFoods] = useState([]);
   const [selectedDinnerFoods, setSelectedDinnerFoods] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedFood, setSelectedFood] = useState(null);
-
-  const fetchImages = async (foods, setImages) => {
-    const imagePromises = foods.map(async food => {
-      const query = food.NameClean;
-      const response = await axios.get(
-        `https://www.googleapis.com/customsearch/v1`,
-        {
-          params: {
-            cx: '90f5945524c6643aa',
-            q: query,
-            searchType: 'image',
-            num: 1,
-            imgType: 'photo',
-            imgSize: 'medium',
-            fileType: 'jpg|png|jpeg',
-            safe: 'high',
-            key: 'AIzaSyDHuSqbBG0RSRQiDYPFYw6_2-yGZFUuS5g',
-          },
-        }
-      );
-      const items = response.data.items;
-      return items && items.length > 0 ? items[0].link : 'No image found';
-    });
-    const images = await Promise.all(imagePromises);
-    setImages(images);
-  };
-
-  useEffect(() => {
-    const loadImages = async () => {
-      setLoadingImages(true);
-      await fetchImages(breakfast, setBreakfastImages);
-      await fetchImages(lunch, setLunchImages);
-      await fetchImages(dinner, setDinnerImages);
-      setLoadingImages(false);
-    };
-    loadImages();
-  }, [breakfast, lunch, dinner]);
 
   const handleFoodToggle = (food, type) => {
     const toggleFood = (selectedFoods, setSelectedFoods) => {
@@ -120,15 +87,15 @@ function DietFood() {
     }, 0);
   };
 
-  const renderCarouselItems = (foods, images, type, selectedFoods) => {
+  const renderCarouselItems = (foods, type, selectedFoods) => {
     return foods.map((food, index) => (
       <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
         <div className='p-1'>
-          {loadingImages || images.length === 0 ? (
+          {loadingImages ? (
             <Skeleton className='w-full h-64' />
           ) : (
             <img
-              src={images[index] || ''}
+              src={food.ImageLink}
               alt={food.NameClean}
               className='rounded-md w-full h-64 object-cover cursor-pointer'
               onClick={() => handleImageClick(food)}
@@ -247,12 +214,7 @@ function DietFood() {
         className='w-full mt-4 mb-8'
       >
         <CarouselContent>
-          {renderCarouselItems(
-            breakfast,
-            breakfastImages,
-            'breakfast',
-            selectedBreakfastFoods
-          )}
+          {renderCarouselItems(breakfast, 'breakfast', selectedBreakfastFoods)}
         </CarouselContent>
         <CarouselPrevious />
         <CarouselNext />
@@ -273,7 +235,7 @@ function DietFood() {
         className='w-full mt-4 mb-8'
       >
         <CarouselContent>
-          {renderCarouselItems(lunch, lunchImages, 'lunch', selectedLunchFoods)}
+          {renderCarouselItems(lunch, 'lunch', selectedLunchFoods)}
         </CarouselContent>
         <CarouselPrevious />
         <CarouselNext />
@@ -294,12 +256,7 @@ function DietFood() {
         className='w-full mt-4 mb-8'
       >
         <CarouselContent>
-          {renderCarouselItems(
-            dinner,
-            dinnerImages,
-            'dinner',
-            selectedDinnerFoods
-          )}
+          {renderCarouselItems(dinner, 'dinner', selectedDinnerFoods)}
         </CarouselContent>
         <CarouselPrevious />
         <CarouselNext />
