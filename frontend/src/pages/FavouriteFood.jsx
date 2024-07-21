@@ -69,6 +69,8 @@ function FavouriteFood() {
 
       const { data } = response;
 
+      console.log(data.data);
+
       dispatch(setBreakfast(data.data.breakfast));
       dispatch(setLunch(data.data.lunch));
       dispatch(setDinner(data.data.dinner));
@@ -151,7 +153,9 @@ function FavouriteFood() {
           className='rounded-full bg-black px-10'
           onClick={handleNextClick}
           disabled={
-            favoriteFoods.length < 2 || favoriteFoods.some(food => !food)
+            favoriteFoods.length < 2 ||
+            favoriteFoods.some(food => !food) ||
+            favoriteFoods.length > 2
           }
         >
           {loading ? 'Loading...' : 'Get Your Diet Food'}

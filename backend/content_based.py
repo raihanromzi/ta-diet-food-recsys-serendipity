@@ -24,7 +24,7 @@ def cluster_recommendations(recommendations_df, user_favorites_length):
     for cluster in np.unique(clusters):
         cluster_indices = np.where(clusters == cluster)[0]
         cluster_recommendations = recommendations_df.iloc[cluster_indices]
-        num_recommendations_from_cluster = min(5, len(cluster_recommendations))
+        num_recommendations_from_cluster = min(10, len(cluster_recommendations))
         diverse_recommendations.append(cluster_recommendations.head(num_recommendations_from_cluster))
 
     diverse_recommendations_df = pd.concat(diverse_recommendations).reset_index(drop=True)
@@ -34,6 +34,11 @@ def cluster_recommendations(recommendations_df, user_favorites_length):
 def filter_similarity(similarity_df, df, top_n_high, top_n_low):
     high_similarity_candidates = []
     low_similarity_candidates = []
+
+    # To make sure on each run, the top_n_high and top_n_low are different
+
+    top_n_high = top_n_high + np.random.randint(0, 15)
+    top_n_low = top_n_low + np.random.randint(0, 3)
 
     for favorite, similarities in similarity_df.items():
         # Get top n high similarity indices
@@ -63,7 +68,7 @@ def filter_similarity(similarity_df, df, top_n_high, top_n_low):
     return high_similarity_df, low_similarity_df
 
 
-def combine_recommendations(high_sim_df, low_sim_df, top_n_high=20, top_n_low=5):
+def combine_recommendations(high_sim_df, low_sim_df, top_n_high=80, top_n_low=20):
     # Calculate diversity scores on high similarity
     candidate_high_similarity_vectors = high_sim_df['CosineSimilarity'].values.reshape(-1, 1)
     high_similarity_matrix = cosine_similarity(candidate_high_similarity_vectors)

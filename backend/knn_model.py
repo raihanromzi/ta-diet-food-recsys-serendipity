@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 def scaling(dataframe):
     scaler=StandardScaler()
-    prep_data=scaler.fit_transform(dataframe.iloc[:,7:16].to_numpy())
+    prep_data=scaler.fit_transform(dataframe.iloc[:,8:17].to_numpy())
     return prep_data,scaler
 
 def nn_predictor(prep_data):
@@ -32,7 +32,7 @@ def build_pipeline(neigh,scaler,params):
 
 def extract_data(dataframe,ingredient_filter,max_nutritional_values):
     extracted_data=dataframe.copy()
-    for column,maximum in zip(extracted_data.columns[7:16],max_nutritional_values):
+    for column,maximum in zip(extracted_data.columns[8:17],max_nutritional_values):
         extracted_data=extracted_data[extracted_data[column]<maximum]
     if ingredient_filter!=None:
         for ingredient in ingredient_filter:
@@ -42,14 +42,14 @@ def extract_data(dataframe,ingredient_filter,max_nutritional_values):
 def apply_pipeline(pipeline,_input,extracted_data):
     return extracted_data.iloc[pipeline.transform(_input)[0]]
 
-def recommend(dataframe,_input,max_nutritional_values,ingredient_filter=None,params={'return_distance':False, 'n_neighbors': 100}):
+def recommend(dataframe,_input,max_nutritional_values,ingredient_filter=None,params={'return_distance':False, 'n_neighbors': 300}):
     extracted_data=extract_data(dataframe,ingredient_filter,max_nutritional_values)
     prep_data,scaler=scaling(extracted_data)
     neigh=nn_predictor(prep_data)
     pipeline=build_pipeline(neigh,scaler,params)
     return apply_pipeline(pipeline,_input,extracted_data)
 
-def recommend_by_calories(dataframe, max_daily_calories, max_nutritional_values, ingredient_filter=None, params={'return_distance':False, 'n_neighbors': 100}):
+def recommend_by_calories(dataframe, max_daily_calories, max_nutritional_values, ingredient_filter=None, params={'return_distance':False, 'n_neighbors': 300}):
     # Extract data based on maximum nutritional values and ingredient filter
     extracted_data = extract_data(dataframe, ingredient_filter, max_nutritional_values)
 

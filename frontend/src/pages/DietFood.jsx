@@ -88,34 +88,57 @@ function DietFood() {
   };
 
   const renderCarouselItems = (foods, type, selectedFoods) => {
-    return foods.map((food, index) => (
-      <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
-        <div className='p-1'>
-          {loadingImages ? (
-            <Skeleton className='w-full h-64' />
-          ) : (
-            <img
-              src={food.ImageLink}
-              alt={food.NameClean}
-              className='rounded-md w-full h-64 object-cover cursor-pointer'
-              onClick={() => handleImageClick(food)}
-            />
-          )}
-          <div className='text-center'>
-            <input
-              type='checkbox'
-              checked={selectedFoods.includes(food.RecipeId)}
-              onChange={() => handleFoodToggle(food, type)}
-              className='mr-2'
-            />
-            <span>{food.NameClean || <Skeleton />}</span>
+    return foods.map((food, index) => {
+      let imageUrl =
+        'https://www.nutritionfacts.org/wp-content/uploads/2019/08/default-image.jpg'; // Replace with an actual default image URL if needed
+
+      try {
+        // Parse ImagesClean to a valid JSON array
+        const cleanedImages = food.ImagesClean.replace(/'/g, '"') // Replace single quotes with double quotes
+          .replace(/[\[\]]/g, ''); // Remove square brackets
+
+        // Split the cleaned string into an array
+        const imagesArray = cleanedImages
+          .split(' ')
+          .map(img => img.trim().replace(/"/g, '').replace(/,$/, ''));
+
+        // Check if the array has valid URLs
+        if (imagesArray.length > 0 && imagesArray[0] !== 'character(0') {
+          imageUrl = imagesArray[0]; // Use the first image URL
+        }
+      } catch (error) {
+        console.error('Error parsing ImagesClean:', error);
+      }
+
+      return (
+        <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
+          <div className='p-1'>
+            {loadingImages ? (
+              <Skeleton className='w-full h-64' />
+            ) : (
+              <img
+                src={imageUrl}
+                alt={food.NameClean}
+                className='rounded-md w-full h-64 object-cover cursor-pointer'
+                onClick={() => handleImageClick(food)}
+              />
+            )}
+            <div className='text-center'>
+              <input
+                type='checkbox'
+                checked={selectedFoods.includes(food.RecipeId)}
+                onChange={() => handleFoodToggle(food, type)}
+                className='mr-2'
+              />
+              <span>{food.NameClean || <Skeleton />}</span>
+            </div>
+            <p className='text-center'>
+              {food.Calories ? `${food.Calories.toFixed(1)} Cal` : <Skeleton />}
+            </p>
           </div>
-          <p className='text-center'>
-            {food.Calories ? `${food.Calories.toFixed(1)} Cal` : <Skeleton />}
-          </p>
-        </div>
-      </CarouselItem>
-    ));
+        </CarouselItem>
+      );
+    });
   };
 
   const selectedBreakfastCalories = calculateTotalCalories(
@@ -288,6 +311,11 @@ function DietFood() {
               <Dialog.Title className='text-2xl font-bold mb-2'>
                 {selectedFood?.NameClean}
               </Dialog.Title>
+              <Dialog.Description className='mt-2 text-sm'>
+                <p>Description: {selectedFood?.DescriptionClean}</p>
+                <p>Keywords: {selectedFood?.KeywordsClean}</p>
+                <p>Category: {selectedFood?.RecipeCategoryClean}</p>
+              </Dialog.Description>
               <Dialog.Description className='mt-2'>
                 <h3 className='text-xl font-semibold mb-2'>Nutrition Facts</h3>
                 <ul className='list-disc list-inside'>

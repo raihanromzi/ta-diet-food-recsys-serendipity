@@ -41,29 +41,62 @@ function TimeToEat() {
     setDialogOpen(true);
   };
 
+  const parseImagesClean = imagesString => {
+    try {
+      // Replace single quotes with double quotes and remove square brackets
+      const cleanedImages = imagesString
+        .replace(/'/g, '"')
+        .replace(/[\[\]]/g, '');
+
+      // Split the cleaned string into an array
+      const imagesArray = cleanedImages
+        .split(' ')
+        .map(img => img.trim().replace(/"/g, '').replace(/,$/, ''));
+
+      // Filter out any invalid URLs
+      return imagesArray.filter(img => img.startsWith('http'));
+    } catch (error) {
+      console.error('Error parsing ImagesClean:', error);
+      return [];
+    }
+  };
+
   const renderFoodList = foods => {
-    return foods.map((food, index) => (
-      <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
-        <div className='p-1'>
-          {loadingImages ? (
-            <Skeleton className='w-full h-64' />
-          ) : (
-            <img
-              src={food.ImageLink}
-              alt={food.NameClean}
-              className='rounded-md w-full h-64 object-cover cursor-pointer'
-              onClick={() => handleImageClick(food, images[index])}
-            />
-          )}
-          <div className='text-center'>
-            <span>{food.NameClean}</span>
+    return foods.map((food, index) => {
+      let imageUrl =
+        'https://www.nutritionfacts.org/wp-content/uploads/2019/08/default-image.jpg'; // Default image URL
+
+      // Parse the ImagesClean field
+      const imagesArray = parseImagesClean(food.ImagesClean);
+
+      // Use the first valid image URL if available
+      if (imagesArray.length > 0) {
+        imageUrl = imagesArray[0];
+      }
+
+      return (
+        <CarouselItem key={index} className='md:basis-1/2 lg:basis-1/3'>
+          <div className='p-1'>
+            {loadingImages ? (
+              <Skeleton className='w-full h-64' />
+            ) : (
+              <img
+                src={imageUrl}
+                alt={food.NameClean}
+                className='rounded-md w-full h-64 object-cover cursor-pointer'
+                onClick={() => handleImageClick(food, imageUrl)}
+              />
+            )}
+            <div className='text-center'>
+              <span>{food.NameClean}</span>
+            </div>
+            <p className='text-center'>
+              {food.Calories ? `${food.Calories.toFixed(1)} Cal` : 'N/A'}
+            </p>
           </div>
-          <p className='text-center'>
-            {food.Calories ? `${food.Calories.toFixed(1)} Cal` : 'N/A'}
-          </p>
-        </div>
-      </CarouselItem>
-    ));
+        </CarouselItem>
+      );
+    });
   };
 
   const calculateTotalCalories = foods => {

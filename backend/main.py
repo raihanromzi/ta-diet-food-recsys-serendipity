@@ -40,8 +40,8 @@ with open('./models/tfidf_matrix.pkl', 'rb') as f:
 
 class FavoriteFoodRequest(BaseModel):
     favoriteFoods: list[str]
-    topNHigh: int = 40
-    topNLow: int = 10
+    topNHigh: int = 150
+    topNLow: int = 50
     tdee: float
 
 class TDEERequest(BaseModel):
@@ -85,7 +85,7 @@ async def index(
         user_favorites = user_favorite_foods + [' '.join(user_favorite_foods)]
         user_favorites_length = len(user_favorites)
 
-        # KNN Filter for Calories (100 foods)
+        # KNN Filter for Calories (300 foods)
         breakfast_filtered_calories = recommend_by_calories(df, breakfast_calories_max, max_list)
         lunch_filtered_calories = recommend_by_calories(df, lunch_calories_max, max_list)
         dinner_filtered_calories = recommend_by_calories(df, dinner_calories_max, max_list)
@@ -94,17 +94,17 @@ async def index(
         lunch_similarity_df = calculate_similarity(lunch_filtered_calories, user_favorites)
         dinner_similarity_df = calculate_similarity(dinner_filtered_calories, user_favorites)
 
-        # Content Based Filter (TopHighN = 40, TopLowN = 10) (50 foods)
+        # Content Based Filter (TopHighN = 150, TopLowN = 50) (200 foods)
         breakfast_high_sim, breakfast_low_sim = filter_similarity(breakfast_similarity_df, df, top_n_high, top_n_low)
         lunch_high_sim, lunch_low_sim = filter_similarity(lunch_similarity_df, df, top_n_high, top_n_low)
         dinner_high_sim, dinner_low_sim = filter_similarity(dinner_similarity_df, df, top_n_high, top_n_low)
 
-        # Combine Recommendations (TopHighN = 20, TopLowN = 5) (25 foods)
+        # Combine Recommendations (TopHighN = 80, TopLowN = 20) (100 foods)
         top_breakfast_recommendations = combine_recommendations(breakfast_high_sim, breakfast_low_sim)
         top_lunch_recommendations = combine_recommendations(lunch_high_sim, lunch_low_sim)
         top_dinner_recommendations = combine_recommendations(dinner_high_sim, dinner_low_sim)
 
-        # Cluster Recommendations (TopN = 5) (5 foods)
+        # Cluster Recommendations (TopN = 10) (10 * user_favorites_length foods)
         diverse_breakfast_recommendations = cluster_recommendations(top_breakfast_recommendations, user_favorites_length)
         diverse_lunch_recommendations = cluster_recommendations(top_lunch_recommendations, user_favorites_length)
         diverse_dinner_recommendations = cluster_recommendations(top_dinner_recommendations, user_favorites_length)
@@ -126,7 +126,7 @@ async def index(
             if recipe_image == "['character(0']":
                 try:
                     image_link = get_image_url(row['NameClean'])
-                    final_recommendations["breakfast"].at[i, 'ImagesClean'] = [image_link]
+                    final_recommendations["breakfast"].at[i, 'ImagesClean'] = f"[{image_link}]"
                 except Exception as e:
                     final_recommendations["breakfast"].at[i, 'ImagesClean'] = f"Error finding image: {str(e)}"
 
@@ -136,7 +136,7 @@ async def index(
             if recipe_image == "['character(0']":
                 try:
                     image_link = get_image_url(row['NameClean'])
-                    final_recommendations["lunch"].at[i, 'ImagesClean'] = [image_link]
+                    final_recommendations["lunch"].at[i, 'ImagesClean'] = f"[{image_link}]"
                 except Exception as e:
                     final_recommendations["lunch"].at[i, 'ImagesClean'] = f"Error finding image: {str(e)}"
 
@@ -146,7 +146,7 @@ async def index(
             if recipe_image == "['character(0']":
                 try:
                     image_link = get_image_url(row['NameClean'])
-                    final_recommendations["dinner"].at[i, 'ImagesClean'] = [image_link]
+                    final_recommendations["dinner"].at[i, 'ImagesClean'] = f"[{image_link}]"
                 except Exception as e:
                     final_recommendations["dinner"].at[i, 'ImagesClean'] = f"Error finding image: {str(e)}"
 
