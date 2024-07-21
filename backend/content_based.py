@@ -3,42 +3,31 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import KMeans
 import pandas as pd
 import numpy as np
+import pickle
 
-def calculate_similarity(filtered_df, user_favorites):
-    tfidf_vectorizer = TfidfVectorizer()
-    tfidf_matrix = tfidf_vectorizer.fit_transform(filtered_df['Combined'])
+# Load TF-IDF Models
+with open('./models/tfidf_vectorizer.pkl', 'rb') as f:
+    tfidf_vectorizer = pickle.load(f)
+with open('./models/tfidf_matrix.pkl', 'rb') as f:
+    tfidf_matrix = pickle.load(f)
 
+def calculate_similarity(df, user_favorites):
     similarity_dict = {}
     for favorite in user_favorites:
+        # Transform the string to a TF-IDF vector
         favorite_vector = tfidf_vectorizer.transform([favorite])
+
+        # Calculate cosine similarities
         similarities = cosine_similarity(favorite_vector, tfidf_matrix).flatten()
+
+        # Store the similarities in the dictionary
         similarity_dict[favorite] = similarities
-    return pd.DataFrame(similarity_dict, index=filtered_df['Combined'])
 
-def cluster_recommendations(recommendations_df, user_favorites_length):
-    favorites_hashed = recommendations_df['Favorite'].apply(lambda x: hash(str(x)) % 10**8).values.reshape(-1, 1)
-    kmeans = KMeans(n_clusters=user_favorites_length, random_state=42)
-    clusters = kmeans.fit_predict(favorites_hashed)
-
-    diverse_recommendations = []
-    for cluster in np.unique(clusters):
-        cluster_indices = np.where(clusters == cluster)[0]
-        cluster_recommendations = recommendations_df.iloc[cluster_indices]
-        num_recommendations_from_cluster = min(10, len(cluster_recommendations))
-        diverse_recommendations.append(cluster_recommendations.head(num_recommendations_from_cluster))
-
-    diverse_recommendations_df = pd.concat(diverse_recommendations).reset_index(drop=True)
-    diverse_recommendations_df.drop_duplicates(inplace=True)
-    return diverse_recommendations_df
+    return pd.DataFrame(similarity_dict, index=df['NameClean'])
 
 def filter_similarity(similarity_df, df, top_n_high, top_n_low):
     high_similarity_candidates = []
     low_similarity_candidates = []
-
-    # To make sure on each run, the top_n_high and top_n_low are different
-
-    top_n_high = top_n_high + np.random.randint(0, 15)
-    top_n_low = top_n_low + np.random.randint(0, 3)
 
     for favorite, similarities in similarity_df.items():
         # Get top n high similarity indices
@@ -65,41 +54,21 @@ def filter_similarity(similarity_df, df, top_n_high, top_n_low):
     low_similarity_df.replace([np.inf, -np.inf], np.nan, inplace=True)
     low_similarity_df.dropna(inplace=True)
 
-    return high_similarity_df, low_similarity_df
+    # return high_similarity_df, low_similarity_df
+    return pd.concat([high_similarity_df, low_similarity_df]).drop_duplicates().reset_index(drop=True)
 
+def cluster_recommendations(recommendations_df, user_favorites_length):
+    favorites_hashed = recommendations_df['Favorite'].apply(lambda x: hash(str(x)) % 10**8).values.reshape(-1, 1)
+    kmeans = KMeans(n_clusters=user_favorites_length, random_state=42)
+    clusters = kmeans.fit_predict(favorites_hashed)
 
-def combine_recommendations(high_sim_df, low_sim_df, top_n_high=80, top_n_low=20):
-    # Calculate diversity scores on high similarity
-    candidate_high_similarity_vectors = high_sim_df['CosineSimilarity'].values.reshape(-1, 1)
-    high_similarity_matrix = cosine_similarity(candidate_high_similarity_vectors)
-    diversity_high_similarity_scores = np.sum(high_similarity_matrix, axis=1) / high_similarity_matrix.shape[1]
+    diverse_recommendations = []
+    for cluster in np.unique(clusters):
+        cluster_indices = np.where(clusters == cluster)[0]
+        cluster_recommendations = recommendations_df.iloc[cluster_indices]
+        num_recommendations_from_cluster = min(25, len(cluster_recommendations))
+        diverse_recommendations.append(cluster_recommendations.head(num_recommendations_from_cluster))
 
-    # Assuming CosineSimilarity as relevance score
-    relevance_high_similarity_scores = high_sim_df['CosineSimilarity'].values
-
-    # Calculate serendipity scores
-    high_serendipity_scores = (0.5 * relevance_high_similarity_scores) + (0.5 * diversity_high_similarity_scores)
-
-    # Rank items by serendipity
-    high_ranked_indices = np.argsort(high_serendipity_scores)[::-1]
-    top_high_similarity_recommendations = high_sim_df.iloc[high_ranked_indices[:top_n_high]].reset_index(drop=True)
-
-    # Calculate diversity scores on low similarity
-    candidate_low_similarity_vectors = low_sim_df['CosineSimilarity'].values.reshape(-1, 1)
-    low_similarity_matrix = cosine_similarity(candidate_low_similarity_vectors)
-    diversity_low_similarity_scores = np.sum(low_similarity_matrix, axis=1) / low_similarity_matrix.shape[1]
-
-    # Assuming CosineSimilarity as relevance score
-    relevance_low_similarity_scores = low_sim_df['CosineSimilarity'].values
-
-    # Calculate serendipity scores
-    low_serendipity_scores = (0.5 * relevance_low_similarity_scores) + (0.5 * diversity_low_similarity_scores)
-
-    # Rank items by serendipity
-    low_ranked_indices = np.argsort(low_serendipity_scores)[::-1]
-    top_low_similarity_recommendations = low_sim_df.iloc[low_ranked_indices[:top_n_low]].reset_index(drop=True)
-
-    # Combine high and low similarity recommendations
-    top_recommendations = pd.concat([top_high_similarity_recommendations, top_low_similarity_recommendations]).drop_duplicates().reset_index(drop=True)
-
-    return top_recommendations
+    diverse_recommendations_df = pd.concat(diverse_recommendations).reset_index(drop=True)
+    diverse_recommendations_df.drop_duplicates(inplace=True)
+    return diverse_recommendations_df

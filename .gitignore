@@ -3,3 +3,5 @@ backend/models/tfidf_matrix.pkl
 backend/models/tfidf_vectorizer.pkl
 jupyter-notebook/dataset/
 backend/data/preprocessed_recipes.csv
+jupyter-notebook/models/tfidf_matrix.pkl
+jupyter-notebook/models/tfidf_vectorizer.pkl
