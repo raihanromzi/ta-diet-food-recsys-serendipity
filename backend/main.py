@@ -6,7 +6,12 @@ import pickle
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 from sklearn.cluster import KMeans
-from google_images_search import GoogleImagesSearch
+from bmi_bmr_tdee import calculate_bmi, get_bmi_status, calculate_bmr, calculate_tdee
+from knn_model import recommend_by_calories
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import TfidfVectorizer
+from content_based import calculate_similarity, filter_similarity, combine_recommendations, cluster_recommendations
+from image import get_image_url
 
 app = FastAPI()
 
@@ -25,7 +30,7 @@ app.add_middleware(
 )
 
 # Load dataset
-df = pd.read_csv('./data/recipes.csv')
+df = pd.read_csv('./data/preprocessed_recipes.csv')
 
 # Load TF-IDF Models
 with open('./models/tfidf_vectorizer.pkl', 'rb') as f:
@@ -35,8 +40,8 @@ with open('./models/tfidf_matrix.pkl', 'rb') as f:
 
 class FavoriteFoodRequest(BaseModel):
     favoriteFoods: list[str]
-    topNHigh: int = 250
-    topNLow: int = 100
+    topNHigh: int = 40
+    topNLow: int = 10
     tdee: float
 
 class TDEERequest(BaseModel):
@@ -46,58 +51,6 @@ class TDEERequest(BaseModel):
     gender: str
     activity_level: str
 
-def calculate_bmr(gender: str, weight: float, height: float, age: int) -> float:
-    if gender.lower() == "male":
-        bmr = 88.362 + (13.397 * weight) + (4.799 * height) - (5.677 * age)
-    else:
-        bmr = 447.593 + (9.247 * weight) + (3.098 * height) - (4.330 * age)
-    return bmr
-
-def calculate_tdee(bmr: float, activity_level: str) -> float:
-    activity_multipliers = {
-        "sedentary": 1.2,
-        "lightly": 1.375,
-        "moderately": 1.55,
-        "very-active": 1.725,
-        "extra-active": 1.9
-    }
-    multiplier = activity_multipliers.get(activity_level.lower(), 1.2)
-    tdee = bmr * multiplier
-    return tdee
-
-def calculate_bmi(weight: float, height: float) -> float:
-    height_in_meters = height / 100  # convert height to meters
-    bmi = weight / (height_in_meters ** 2)
-    return bmi
-
-def get_bmi_status(bmi: float) -> str:
-    if bmi < 18.5:
-        return "Underweight"
-    elif 18.5 <= bmi < 24.9:
-        return "Normal weight"
-    elif 25 <= bmi < 29.9:
-        return "Overweight"
-    else:
-        return "Obesity"
-
-def get_image_url(query: str) -> str:
-    gis = GoogleImagesSearch('AIzaSyDHuSqbBG0RSRQiDYPFYw6_2-yGZFUuS5g', '90f5945524c6643aa')
-
-    _search_params = {
-        'q': query,
-        'num': 1,
-        'safe': 'high',
-        'fileType': 'jpg|png|jpeg',
-        'imgType': 'photo',
-        'imgSize': 'medium',
-    }
-
-    gis.search(search_params=_search_params)
-    if gis.results():
-        return gis.results()[0].url
-    return 'No image found'
-
-
 @app.post("/recommendations")
 async def index(
     request: FavoriteFoodRequest,
@@ -106,6 +59,8 @@ async def index(
         # Extract user favorite foods
         user_favorite_foods = request.favoriteFoods
         tdee = request.tdee
+        top_n_high = request.topNHigh
+        top_n_low = request.topNLow
 
         # Calculate calorie ranges based on TDEE
         breakfast_calories_min = tdee * 0.30
@@ -115,173 +70,92 @@ async def index(
         dinner_calories_min = tdee * 0.25
         dinner_calories_max = tdee * 0.35
 
+        max_Calories=1000
+        max_daily_fat=100
+        max_daily_Saturatedfat=13
+        max_daily_Cholesterol=300
+        max_daily_Sodium=2300
+        max_daily_Carbohydrate=325
+        max_daily_Fiber=40
+        max_daily_Sugar=40
+        max_daily_Protein=200
+        max_list=[max_Calories,max_daily_fat,max_daily_Saturatedfat,max_daily_Cholesterol,max_daily_Sodium,max_daily_Carbohydrate,max_daily_Fiber,max_daily_Sugar,max_daily_Protein]
+
         # Generate combinations for similarity calculations
         user_favorites = user_favorite_foods + [' '.join(user_favorite_foods)]
         user_favorites_length = len(user_favorites)
 
-        # Initialize a dictionary to store similarities
-        df_combined = df["Combined"]
-        similarity_dict = {}
+        # KNN Filter for Calories (100 foods)
+        breakfast_filtered_calories = recommend_by_calories(df, breakfast_calories_max, max_list)
+        lunch_filtered_calories = recommend_by_calories(df, lunch_calories_max, max_list)
+        dinner_filtered_calories = recommend_by_calories(df, dinner_calories_max, max_list)
 
-        # Calculate similarities for each string
-        for favorite in user_favorites:
-            # Transform the string to a TF-IDF vector
-            favorite_vector = tfidf_vectorizer.transform([favorite])
+        breakfast_similarity_df = calculate_similarity(breakfast_filtered_calories, user_favorites)
+        lunch_similarity_df = calculate_similarity(lunch_filtered_calories, user_favorites)
+        dinner_similarity_df = calculate_similarity(dinner_filtered_calories, user_favorites)
 
-            # Calculate cosine similarities
-            similarities = cosine_similarity(favorite_vector, tfidf_matrix).flatten()
+        # Content Based Filter (TopHighN = 40, TopLowN = 10) (50 foods)
+        breakfast_high_sim, breakfast_low_sim = filter_similarity(breakfast_similarity_df, df, top_n_high, top_n_low)
+        lunch_high_sim, lunch_low_sim = filter_similarity(lunch_similarity_df, df, top_n_high, top_n_low)
+        dinner_high_sim, dinner_low_sim = filter_similarity(dinner_similarity_df, df, top_n_high, top_n_low)
 
-            # Store the similarities in the dictionary
-            similarity_dict[favorite] = similarities
+        # Combine Recommendations (TopHighN = 20, TopLowN = 5) (25 foods)
+        top_breakfast_recommendations = combine_recommendations(breakfast_high_sim, breakfast_low_sim)
+        top_lunch_recommendations = combine_recommendations(lunch_high_sim, lunch_low_sim)
+        top_dinner_recommendations = combine_recommendations(dinner_high_sim, dinner_low_sim)
 
-        similarity_df = pd.DataFrame(similarity_dict, index=df_combined)
+        # Cluster Recommendations (TopN = 5) (5 foods)
+        diverse_breakfast_recommendations = cluster_recommendations(top_breakfast_recommendations, user_favorites_length)
+        diverse_lunch_recommendations = cluster_recommendations(top_lunch_recommendations, user_favorites_length)
+        diverse_dinner_recommendations = cluster_recommendations(top_dinner_recommendations, user_favorites_length)
 
-        # Filter High Similarity
-        high_similarity_candidates = []
-        top_n_high = request.topNHigh
+        # Drop Combined, CosineSimilarity, Favorite column
+        diverse_breakfast_recommendations.drop(["Combined", "CosineSimilarity", "Favorite"], axis=1, inplace=True)
+        diverse_lunch_recommendations.drop(["Combined", "CosineSimilarity", "Favorite"], axis=1, inplace=True)
+        diverse_dinner_recommendations.drop(["Combined", "CosineSimilarity", "Favorite"], axis=1, inplace=True)
 
-        for favorite, similarities in similarity_df.items():
-            # Get top n indices
-            top_n_indices = similarities.argsort()[-top_n_high:][::-1]
+        final_recommendations = {
+            "breakfast": diverse_breakfast_recommendations,
+            "lunch": diverse_lunch_recommendations,
+            "dinner": diverse_dinner_recommendations
+        }
 
-            # Select the top n candidate recipes
-            candidate_recipes = df.iloc[top_n_indices].copy()
-            candidate_recipes['CosineSimilarity'] = similarities.iloc[top_n_indices].tolist()
-            candidate_recipes['Favorite'] = favorite
+        for i, row in final_recommendations["breakfast"].iterrows():
+            # check if the column ImagesClean contains "['character(0']"
+            recipe_image = row['ImagesClean']
+            if recipe_image == "['character(0']":
+                try:
+                    image_link = get_image_url(row['NameClean'])
+                    final_recommendations["breakfast"].at[i, 'ImagesClean'] = [image_link]
+                except Exception as e:
+                    final_recommendations["breakfast"].at[i, 'ImagesClean'] = f"Error finding image: {str(e)}"
 
-            # Append the candidate DataFrame to the list
-            high_similarity_candidates.append(candidate_recipes)
+        for i, row in final_recommendations["lunch"].iterrows():
+            # check if the column ImagesClean contains "['character(0']"
+            recipe_image = row['ImagesClean']
+            if recipe_image == "['character(0']":
+                try:
+                    image_link = get_image_url(row['NameClean'])
+                    final_recommendations["lunch"].at[i, 'ImagesClean'] = [image_link]
+                except Exception as e:
+                    final_recommendations["lunch"].at[i, 'ImagesClean'] = f"Error finding image: {str(e)}"
 
-        high_similarity_df = pd.concat(high_similarity_candidates).drop_duplicates().reset_index(drop=True)
-
-        # Filter Low Similarity
-        top_n_low = request.topNLow
-        low_similarity_candidates = []
-
-        for favorite, similarities in similarity_df.items():
-            # Get indices of foods with non-zero and low similarity
-            non_zero_indices = np.where(similarities > 0)[0]
-            low_similarity_indices = non_zero_indices[similarities.iloc[non_zero_indices].argsort()[:top_n_low]]
-
-            # Select random foods from these low similarity candidates
-            random_low_sim_candidates = df.iloc[low_similarity_indices].sample(top_n_low, random_state=42)
-            random_low_sim_candidates['CosineSimilarity'] = similarities.iloc[low_similarity_indices].tolist()
-            random_low_sim_candidates['Favorite'] = favorite
-
-            # Append the low similarity DataFrame to the list
-            low_similarity_candidates.append(random_low_sim_candidates)
-
-        low_similarity_df = pd.concat(low_similarity_candidates).drop_duplicates().reset_index(drop=True)
-
-        high_similarity_df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        high_similarity_df.dropna(inplace=True)
-
-        low_similarity_df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        low_similarity_df.dropna(inplace=True)
-
-        # Calculate diversity scores on high similarity
-        candidate_high_similarity_vectors = high_similarity_df['CosineSimilarity'].values.reshape(-1, 1)
-        similarity_matrix = cosine_similarity(candidate_high_similarity_vectors)
-        diversity_high_similarity_scores = np.sum(similarity_matrix, axis=1) / similarity_matrix.shape[1]
-
-        # Assuming CosineSimilarity as relevance score
-        relevance_high_similarity_scores = high_similarity_df['CosineSimilarity'].values
-
-        # Calculate serendipity scores
-        serendipity_scores = (0.5 * relevance_high_similarity_scores) + (0.5 * diversity_high_similarity_scores)
-
-        # Rank items by serendipity
-        ranked_indices = np.argsort(serendipity_scores)[::-1]
-        top_high_similarity_recommendations = high_similarity_df.iloc[ranked_indices[:150]].reset_index(drop=True)
-
-        # Calculate diversity scores on low similarity
-        candidate_low_similarity_vectors = low_similarity_df['CosineSimilarity'].values.reshape(-1, 1)
-        similarity_matrix = cosine_similarity(candidate_low_similarity_vectors)
-        diversity_low_similarity_scores = np.sum(similarity_matrix, axis=1) / similarity_matrix.shape[1]
-
-        # Assuming CosineSimilarity as relevance score
-        relevance_low_similarity_scores = low_similarity_df['CosineSimilarity'].values
-
-        # Calculate serendipity scores
-        serendipity_scores = (0.5 * relevance_low_similarity_scores) + (0.5 * diversity_low_similarity_scores)
-
-        # Rank items by serendipity
-        ranked_indices = np.argsort(serendipity_scores)[::-1]
-        top_low_similarity_recommendations = low_similarity_df.iloc[ranked_indices[:70]].reset_index(drop=True)
-
-        # Combine high and low similarity recommendations
-        top_recommendations = pd.concat([top_high_similarity_recommendations, top_low_similarity_recommendations]).reset_index(drop=True)
-
-        # Ensure diversity by clustering
-        favorites_hashed = top_recommendations['Favorite'].apply(lambda x: hash(str(x)) % 10**8).values.reshape(-1, 1)
-        kmeans = KMeans(n_clusters=user_favorites_length, random_state=42)
-        clusters = kmeans.fit_predict(favorites_hashed)
-
-        diverse_recommendations = []
-        for cluster in np.unique(clusters):
-            cluster_indices = np.where(clusters == cluster)[0]
-            cluster_recommendations = top_recommendations.iloc[cluster_indices]
-            num_recommendations_from_cluster = min(25, len(cluster_recommendations))
-            diverse_recommendations.append(cluster_recommendations.head(num_recommendations_from_cluster))
-
-        diverse_recommendations_df = pd.concat(diverse_recommendations).reset_index(drop=True)
-        diverse_recommendations_df.drop_duplicates(inplace=True)
-
-        # Randomly shuffle the DataFrame
-        shuffled_recommendations = diverse_recommendations_df.sample(frac=1).reset_index(drop=True)
-
-        # Calculate the number of items for each meal
-        total_items = len(shuffled_recommendations)
-        breakfast_count = total_items // 3
-        lunch_count = total_items // 3
-        dinner_count = total_items - breakfast_count - lunch_count
-
-        # Split the shuffled DataFrame into three parts
-        breakfast_recommendations = shuffled_recommendations.iloc[:breakfast_count]
-        lunch_recommendations = shuffled_recommendations.iloc[breakfast_count:breakfast_count + lunch_count]
-        dinner_recommendations = shuffled_recommendations.iloc[breakfast_count + lunch_count:breakfast_count + lunch_count + dinner_count]
-
-        # Ensure there are no duplicates within each meal type
-        breakfast_recommendations.drop(columns=['Favorite', 'CosineSimilarity', 'Combined'], inplace=True)
-        breakfast_recommendations.drop_duplicates(inplace=True)
-
-        lunch_recommendations.drop(columns=['Favorite', 'CosineSimilarity', 'Combined'], inplace=True)
-        lunch_recommendations.drop_duplicates(inplace=True)
-
-        dinner_recommendations.drop(columns=['Favorite', 'CosineSimilarity', 'Combined'], inplace=True)
-        dinner_recommendations.drop_duplicates(inplace=True)
-
-        # Fetch images for Breakfast, Lunch, and Dinner
-        for i, row in breakfast_recommendations.iterrows():
-            recipe_name = row['NameClean']
-            try:
-                image_link = get_image_url(recipe_name)
-                breakfast_recommendations.at[i, 'ImageLink'] = image_link
-            except Exception as e:
-                breakfast_recommendations.at[i, 'ImageLink'] = f"Error finding image: {str(e)}"
-
-        for i, row in lunch_recommendations.iterrows():
-            recipe_name = row['NameClean']
-            try:
-                image_link = get_image_url(recipe_name)
-                lunch_recommendations.at[i, 'ImageLink'] = image_link
-            except Exception as e:
-                lunch_recommendations.at[i, 'ImageLink'] = f"Error finding image: {str(e)}"
-
-        for i, row in dinner_recommendations.iterrows():
-            recipe_name = row['NameClean']
-            try:
-                image_link = get_image_url(recipe_name)
-                dinner_recommendations.at[i, 'ImageLink'] = image_link
-            except Exception as e:
-                dinner_recommendations.at[i, 'ImageLink'] = f"Error finding image: {str(e)}"
+        for i, row in final_recommendations["dinner"].iterrows():
+            # check if the column ImagesClean contains "['character(0']"
+            recipe_image = row['ImagesClean']
+            if recipe_image == "['character(0']":
+                try:
+                    image_link = get_image_url(row['NameClean'])
+                    final_recommendations["dinner"].at[i, 'ImagesClean'] = [image_link]
+                except Exception as e:
+                    final_recommendations["dinner"].at[i, 'ImagesClean'] = f"Error finding image: {str(e)}"
 
         # Return the serendipitous recommendations
-        return {
+        response = {
             "totalData": {
-                "breakfast": len(breakfast_recommendations),
-                "lunch": len(lunch_recommendations),
-                "dinner": len(dinner_recommendations),
+                "breakfast": len(final_recommendations["breakfast"]),
+                "lunch": len(final_recommendations["lunch"]),
+                "dinner": len(final_recommendations["dinner"]),
             },
             "calories": {
                 "breakfastMinimum": breakfast_calories_min,
@@ -292,11 +166,13 @@ async def index(
                 "dinnerMaximum": dinner_calories_max,
             },
             "data": {
-                "breakfast": breakfast_recommendations.to_dict(orient="records"),
-                "lunch": lunch_recommendations.to_dict(orient="records"),
-                "dinner": dinner_recommendations.to_dict(orient="records"),
+                "breakfast": final_recommendations["breakfast"].to_dict(orient="records"),
+                "lunch": final_recommendations["lunch"].to_dict(orient="records"),
+                "dinner": final_recommendations["dinner"].to_dict(orient="records"),
             }
         }
+
+        return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
