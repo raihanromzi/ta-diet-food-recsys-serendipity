@@ -2,8 +2,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
-from sklearn.cluster import KMeans
-from google_images_search import GoogleImagesSearch
 from bmi_bmr_tdee import calculate_bmi, get_bmi_status, calculate_bmr, calculate_tdee
 from image import get_image_url
 from content_based import calculate_similarity, filter_similarity, cluster_recommendations

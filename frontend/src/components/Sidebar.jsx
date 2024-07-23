@@ -4,6 +4,7 @@ import { Menu as MenuIcon, X as CloseIcon } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { Button } from '@/components/ui/Button.jsx';
 import { useNavigate } from 'react-router-dom';
+import rectangle from '@/assets/rectangle.png';
 
 const SidebarComp = ({ children }) => {
   const [toggled, setToggled] = useState(false);
@@ -39,11 +40,7 @@ const SidebarComp = ({ children }) => {
           <MenuItem className='mt-6'>
             <div className='flex items-center justify-between w-full'>
               <div className='flex items-center'>
-                <img
-                  src='src/assets/rectangle.png'
-                  alt='Gradient'
-                  className='mr-2'
-                />
+                <img src={rectangle} alt='Gradient' className='mr-2' />
                 <span className='font-sans font-bold text-md'>
                   Diet Recommender System
                 </span>
