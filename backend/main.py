@@ -29,7 +29,7 @@ df = pd.read_csv('./data/preprocessed_recipes.csv')
 class FavoriteFoodRequest(BaseModel):
     favoriteFoods: list[str]
     topNHigh: int = 80
-    topNLow: int = 20
+    topNLow: int = 40
     tdee: float
 
 class TDEERequest(BaseModel):
