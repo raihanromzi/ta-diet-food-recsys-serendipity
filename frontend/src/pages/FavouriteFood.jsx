@@ -60,7 +60,7 @@ function FavouriteFood() {
 
     try {
       const response = await axios.post(
-        'http://localhost:8000/recommendations',
+        'http://103.217.145.107:8000/recommendations',
         {
           favoriteFoods,
           tdee,

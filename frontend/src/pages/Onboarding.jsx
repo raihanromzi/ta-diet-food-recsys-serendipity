@@ -92,13 +92,16 @@ function Onboarding() {
     const startTime = Date.now();
 
     try {
-      const response = await axios.post(`http://localhost:8000/tdee-bmi`, {
-        age: parseInt(age),
-        weight: parseInt(weight),
-        height: parseInt(height),
-        gender: gender.toLowerCase(),
-        activity_level: activityLevel.toLowerCase(),
-      });
+      const response = await axios.post(
+        `http://103.217.145.107:8000/tdee-bmi`,
+        {
+          age: parseInt(age),
+          weight: parseInt(weight),
+          height: parseInt(height),
+          gender: gender.toLowerCase(),
+          activity_level: activityLevel.toLowerCase(),
+        }
+      );
 
       const { BMI, TDEE, BMIStatus } = response.data;
       dispatch(setBMIandTDEE({ bmi: BMI, tdee: TDEE, bmiStatus: BMIStatus }));
